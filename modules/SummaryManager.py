@@ -11,22 +11,32 @@ class EvalSummaryManager():
         self.bertscore = evaluate.load('bertscore')
         self.rouge = evaluate.load('rouge')
 
+    def eval_summary(self, summary: str, original: str):
+
+        bert_score = self.bertscore.compute(predictions=[summary], references=[original], lang='en')
+        rouge_score = self.rouge.compute(predictions=[summary], references=[original])
+
+        return {
+            'bert-score': bert_score,
+            'rouge': rouge_score,
+        }
+
     def add_model(self, model_name: str):
         if model_name == 'bart':
-            tokenizer, _ = load_bart()
+            tokenizer, model = load_bart()
             self.models.append({
                 'model_name': 'bart',
-                'model': load_bart_pipeline(),
+                'model': model,
                 'tokenizer': tokenizer,
-                'max_len': tokenizer.model_max_length-3,  # usually 1024
+                'max_len': tokenizer.model_max_length-1,
             })
         elif model_name == 't5':
-            tokenizer, _ = load_clinical_t5()
+            tokenizer, model = load_clinical_t5()
             self.models.append({
                 'model_name': 't5',
-                'model': load_clinical_t5_pipeline(),
+                'model': model,
                 'tokenizer': tokenizer,
-                'max_len': tokenizer.model_max_length-3,  # usually 512
+                'max_len': tokenizer.model_max_length-1,
             })
         else:
             warn('No model with the given name!! Nothing was loaded')
@@ -41,14 +51,28 @@ class EvalSummaryManager():
 
         for text in texts:
             for model in self.models:
-                # Truncate text according to the model's max token length
+                # Truncate text
                 short_text = self.truncate_by_tokens(text, model['tokenizer'], model['max_len'])
 
-                # Generate summary from truncated text
-                row = model['model'](short_text)[0]
-                summary = row['summary_text']
+                # Encode inputs properly
+                encoded = model['tokenizer'](
+                    short_text,
+                    return_tensors='pt',
+                    truncation=True,
+                    max_length=model['max_len']
+                )
 
-                # Evaluate summary with bertscore and rouge against original full text
+                # Generate summary using .generate()
+                summary_ids = model['model'].generate(
+                    input_ids=encoded['input_ids'],
+                    attention_mask=encoded['attention_mask'],
+                    max_length=256,
+                    num_beams=4,
+                    early_stopping=True
+                )
+                summary = model['tokenizer'].decode(summary_ids[0], skip_special_tokens=True)
+
+                # Evaluate with BERTScore and ROUGE
                 bert = self.bertscore.compute(predictions=[summary], references=[text], lang='en')
                 rouge = self.rouge.compute(predictions=[summary], references=[text])
 
@@ -67,3 +91,4 @@ class EvalSummaryManager():
                 results.append(result_row)
 
         return pd.DataFrame(results)
+
