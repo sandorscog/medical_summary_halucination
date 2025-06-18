@@ -1,6 +1,7 @@
 from modules.summarizer import Summarizer
 from modules.SummaryManager import EvalSummaryManager
 from modules.summary_enhancer import enhance
+from modules.data_handler import load_data
 
 
 
@@ -17,7 +18,7 @@ def main():
         base_evaluation = evaluator.eval_summary(summary=base_summary, original=original_text)
 
         enhanced_summary = enhance(base_summary, case)
-        enhanced_evaluation = evaluator.eval_summary(summary=base_summary, original=original_text)
+        enhanced_evaluation = evaluator.eval_summary(summary=enhanced_summary, original=original_text)
 
 
 
