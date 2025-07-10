@@ -2,7 +2,7 @@ from warnings import warn
 import evaluate
 import pandas as pd
 from transformers import BartTokenizer, AutoTokenizer
-from modules.summarizer_loader import load_bart_pipeline, load_clinical_t5_pipeline, load_bart, load_clinical_t5
+from modules.summarizer_loader import load_bart_pipeline, load_clinical_t5_pipeline, load_bart, load_clinical_t5, load_gemini
 
 class EvalSummaryManager():
 
@@ -38,6 +38,15 @@ class EvalSummaryManager():
                 'tokenizer': tokenizer,
                 'max_len': tokenizer.model_max_length-1,
             })
+        elif model_name == 'gemini':
+            model = load_gemini()
+            self.models.append({
+                'model_name': 'gemini',
+                'model': model,
+                'tokenizer': None,
+                'max_len': None,
+            })
+
         else:
             warn('No model with the given name!! Nothing was loaded')
 
@@ -46,31 +55,37 @@ class EvalSummaryManager():
         encoded = tokenizer(text, truncation=True, max_length=max_tokens, return_tensors='pt')
         return tokenizer.decode(encoded['input_ids'][0], skip_special_tokens=True)
 
-    def everything_eval(self, texts: list):
+    def everything_eval(self, texts: list, prompt: str='summarize the following text: \n'):
         results = []
 
         for text in texts:
             for model in self.models:
-                # Truncate text
-                short_text = self.truncate_by_tokens(text, model['tokenizer'], model['max_len'])
 
-                # Encode inputs properly
-                encoded = model['tokenizer'](
-                    short_text,
-                    return_tensors='pt',
-                    truncation=True,
-                    max_length=model['max_len']
-                )
+                if model['model_name'] == 'bart' or model['model_name'] == 't5':
+                    # Truncate text
+                    short_text = self.truncate_by_tokens(text, model['tokenizer'], model['max_len'])
 
-                # Generate summary using .generate()
-                summary_ids = model['model'].generate(
-                    input_ids=encoded['input_ids'],
-                    attention_mask=encoded['attention_mask'],
-                    max_length=256,
-                    num_beams=4,
-                    early_stopping=True
-                )
-                summary = model['tokenizer'].decode(summary_ids[0], skip_special_tokens=True)
+                    # Encode inputs properly
+                    encoded = model['tokenizer'](
+                        short_text,
+                        return_tensors='pt',
+                        truncation=True,
+                        max_length=model['max_len']
+                    )
+
+                    # Generate summary using .generate()
+                    summary_ids = model['model'].generate(
+                        input_ids=encoded['input_ids'],
+                        attention_mask=encoded['attention_mask'],
+                        max_length=256,
+                        num_beams=4,
+                        early_stopping=True
+                    )
+                    summary = model['tokenizer'].decode(summary_ids[0], skip_special_tokens=True)
+
+                elif model['model_name'] == 'gemini':
+                    summary = model['model'].generate_content(prompt + text).text
+
 
                 # Evaluate with BERTScore and ROUGE
                 bert = self.bertscore.compute(predictions=[summary], references=[text], lang='en')
