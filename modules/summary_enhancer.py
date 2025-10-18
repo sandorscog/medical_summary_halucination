@@ -1,6 +1,6 @@
 
 
-def enhance(base_summary: str, ):
+def enhance(base_summary: str, context):
 
     improved_summary = base_summary
 
