@@ -46,7 +46,7 @@ def main():
         base_summary = summarizer.summ(original_text)
         base_evaluation = evaluator.eval_summary(summary=base_summary, original=original_text)
 
-        enhanced_summary = enhance(base_summary, context_textual)
+        enhanced_summary = enhance(base_summary, context_json)
         enhanced_evaluation = evaluator.eval_summary(summary=enhanced_summary, original=original_text)
 
 
