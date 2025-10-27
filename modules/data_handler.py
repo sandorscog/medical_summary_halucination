@@ -7,7 +7,7 @@ def load_discharges():
     return data[:3]
 
 def load_patient_data():
-    data = pd.read_csv('data_samples/hosp/pharmacy.csv') ### TODO: Remove limit in the return
+    data = pd.read_csv('data_samples/hosp/prescriptions.csv') ### TODO: Remove limit in the return
     return data[:100] 
 
 def load_data():

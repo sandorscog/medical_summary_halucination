@@ -4,13 +4,11 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 from modules.summarizer import Summarizer
 from modules.SummaryManager import EvalSummaryManager
-from modules.summary_enhancer import enhance
+from modules.summary_enhancer import enhancer
 from modules.data_handler import load_discharges, load_patient_data
 from modules.context_handler import context_builder_text, context_builder_json, build_discharge_windows, get_patient_window_data
 
 import pandas as pd
-
-
 
 
 def main():
@@ -19,7 +17,6 @@ def main():
 
     # Precompute discharge windows once
     discharge_windows = build_discharge_windows(discharges)
-    print(discharge_windows)
 
     summarizer = Summarizer(model='bart')
     evaluator = EvalSummaryManager()
@@ -39,14 +36,19 @@ def main():
         )
 
         # Convert to text/JSON context for the LLM
+        print(len(context_df))
         context_textual = context_builder_text(context_df)
         context_json = context_builder_json(context_df)
+
+        print(context_json)
+
+        return
 
         # Run summarization and evaluation
         base_summary = summarizer.summ(original_text)
         base_evaluation = evaluator.eval_summary(summary=base_summary, original=original_text)
 
-        enhanced_summary = enhance(base_summary, context_json)
+        enhanced_summary = enhancer(base_summary, context_json)
         enhanced_evaluation = evaluator.eval_summary(summary=enhanced_summary, original=original_text)
 
 
