@@ -40,10 +40,6 @@ def main():
         context_textual = context_builder_text(context_df)
         context_json = context_builder_json(context_df)
 
-        print(context_json)
-
-        return
-
         # Run summarization and evaluation
         base_summary = summarizer.summ(original_text)
         base_evaluation = evaluator.eval_summary(summary=base_summary, original=original_text)
