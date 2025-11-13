@@ -5,13 +5,18 @@ import pandas as pd
 #     table = pd.read_csv('data_samples/prescription.csv')
 #     return table
 
-def context_builder_text(context_jsons) -> str:
+def context_builder_text(context_jsons: list[dict]) -> str:
+    """
+    Build a textual medication summary from context JSONs.
+    Extracts the 'description' field from each JSON entry and stitches them together.
+    """
+    medication_descriptions = [
+        instance.get("description", "")
+        for instance in context_jsons
+        if isinstance(instance, dict) and instance.get("description")
+    ]
 
-    medication_descriptions = []
-    for instance in context_jsons:
-        medication_descriptions.append(instance)
     context = stitch_medicine_descriptions(medication_descriptions)
-
     return context
 
 
@@ -56,8 +61,6 @@ def context_builder_json(context: pd.DataFrame) -> list[dict]:
             "duration_days": round(duration_days, 2) if duration_days is not None else None,
             "description": (
                 f"{row['drug']} ({row['prod_strength']}) was administered for {duration_text} "
-                f"from {row['starttime'].strftime('%Y-%m-%d %H:%M')} "
-                f"to {row['stoptime'].strftime('%Y-%m-%d %H:%M')}."
                 if duration_text else None
             )
         }

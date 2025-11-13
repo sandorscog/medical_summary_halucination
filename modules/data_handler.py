@@ -3,12 +3,12 @@ import os
 import pandas as pd
 
 def load_discharges():
-    data = pd.read_csv('data_samples/notes/discharge.csv')
-    return data[:3]
+    data = pd.read_csv('../data_samples/notes/discharge.csv')
+    return data[:25]
 
 def load_patient_data():
-    data = pd.read_csv('data_samples/hosp/prescriptions.csv') ### TODO: Remove limit in the return
-    return data[:100] 
+    data = pd.read_csv('../data_samples/hosp/prescriptions.csv') ### TODO: Remove limit in the return
+    return data
 
 def load_data():
     discharges = load_discharges()

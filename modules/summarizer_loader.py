@@ -24,7 +24,7 @@ def load_clinical_t5_pipeline():
 
 def load_gemini(model: str='gemini-2.5-flash'):
 
-    with open('config/cred.json') as f:
+    with open('../config/cred.json') as f:
         config = json.load(f)
     api_key = config['api_key']
 
