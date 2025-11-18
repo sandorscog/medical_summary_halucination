@@ -1,6 +1,7 @@
 from modules.summarizer_loader import load_bart, load_clinical_t5, load_gemini
 import evaluate
 import pandas as pd
+from transformers import pipeline
 
 
 class Summarizer():
@@ -12,6 +13,8 @@ class Summarizer():
         elif model == 'gemini':
             self.model = load_gemini()
             self.tokenizer = None
+
+        self.nli = pipeline("text-classification", model="facebook/bart-large-mnli")
 
 
     def summ(self, text: str, prompt: str="Summarize the following discharge note. Don't include visual elements in the text: \n"):
@@ -137,6 +140,59 @@ class Summarizer():
             return claims
         else:
             return response
+        
+
+    def judge(self, claims: list[str], discharge_text: str, context_text: str) -> list[dict]:
+        """
+        Run NLI on each claim against the discharge summary + context_json.
+        Chunking is applied to avoid model context limits.
+        Returns: list of dict {claim, label, score}
+        """
+
+        premise = (
+            f"Discharge:\n{discharge_text}\n\n"
+            f"Patient context:\n{context_text}"
+        )
+
+        chunk_size = 2000
+        overlap = 200
+
+        premise_chunks = [
+            premise[i : i + chunk_size]
+            for i in range(0, len(premise), chunk_size - overlap)
+        ]
+
+        judged = []
+        for claim in claims:
+            best_label = None
+            best_score = 0.0
+
+            # Evaluate the claim against each chunk
+            for chunk in premise_chunks:
+
+                # your original input format: chunk </s> claim
+                result = self.nli(f"{chunk} </s> {claim}")
+                label  = result[0]["label"]
+                score  = result[0]["score"]
+
+                # keep the strongest chunk
+                if score > best_score:
+                    best_label = label
+                    best_score = score
+
+                # early stopping if confident entailment
+                if label == "ENTAILMENT" and score > 0.75:
+                    best_score = score
+                    break
+
+            judged.append({
+                "claim": claim,
+                "label": best_label,
+                "score": float(best_score),
+            })
+
+        return judged
+
     
     def compile(self, claims: list[str]) -> str:
 
