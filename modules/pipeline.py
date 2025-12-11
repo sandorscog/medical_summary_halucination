@@ -3,6 +3,7 @@ from transformers import pipeline
 import evaluate
 from datetime import datetime
 import os
+import gc
 import traceback
 
 from modules.summarizer import Summarizer
@@ -75,7 +76,7 @@ def data_preparation():
             context_textual = context_builder_text(context_json)
 
             cases_data.append(
-                (subject_id, hadm_id, original_text, context_json, context_textual)
+                (case.note_id, subject_id, hadm_id, original_text, context_json, context_textual)
             )
 
     # -------------------------------
@@ -83,7 +84,7 @@ def data_preparation():
     # -------------------------------
     cases_data = pd.DataFrame(
         cases_data,
-        columns=["subject_id", "hadm_id", "discharge_text", "context_json", "context_textual"]
+        columns=['note_id', "subject_id", "hadm_id", "discharge_text", "context_json", "context_textual"]
     )
 
     return cases_data
@@ -108,7 +109,7 @@ def claim_corretor(claims: list[dict], discharge_text: str, context_json: dict) 
 
     kept_claims = []
     for claim in claims:
-        if 'contradiction' in claim['label']:
+        if 'CONTRADICTION' in claim['label']:
             continue
         kept_claims.append(claim)
 
@@ -136,24 +137,25 @@ def results_eval(original: str, summary: str, enhanced_summary: str) -> dict:
     return {
         # ---- ROUGE BASE ----
         "base_rouge1": rouge_scores["rouge1"][0],
-        "base_rouge2": rouge_scores["rouge2"][0],
-        "base_rougeL": rouge_scores["rougeL"][0],
-        "base_rougeLsum": rouge_scores["rougeLsum"][0],
-
-        # ---- ROUGE ENHANCED ----
         "enhanced_rouge1": rouge_scores["rouge1"][1],
+        
+        "base_rouge2": rouge_scores["rouge2"][0],
         "enhanced_rouge2": rouge_scores["rouge2"][1],
+        
+        "base_rougeL": rouge_scores["rougeL"][0],
         "enhanced_rougeL": rouge_scores["rougeL"][1],
+        
+        "base_rougeLsum": rouge_scores["rougeLsum"][0],
         "enhanced_rougeLsum": rouge_scores["rougeLsum"][1],
 
-        # ---- BERTScore BASE ----
+        # ---- BERTScore ----
         "base_bertscore_precision": bert_scores["precision"][0],
-        "base_bertscore_recall": bert_scores["recall"][0],
-        "base_bertscore_f1": bert_scores["f1"][0],
-
-        # ---- BERTScore ENHANCED ----
         "enhanced_bertscore_precision": bert_scores["precision"][1],
+
+        "base_bertscore_recall": bert_scores["recall"][0],
         "enhanced_bertscore_recall": bert_scores["recall"][1],
+
+        "base_bertscore_f1": bert_scores["f1"][0],
         "enhanced_bertscore_f1": bert_scores["f1"][1],
     }
 
@@ -168,12 +170,52 @@ def append_result_to_csv(result_dict: dict, path: str):
         df.to_csv(path, mode='a', header=False, index=False)
 
 
+def generate_summaries(discharge: str) -> dict:
+
+    summarizer_01 = Summarizer(model='gemini', temp=.1)
+    summarizer_1 = Summarizer(model='gemini', temp=1)
+    summarizer_2 = Summarizer(model='gemini', temp=2)
+
+    return {
+        'discharge_summ_01': summarizer_01.summ(discharge),
+        'discharge_summ_1': summarizer_1.summ(discharge),
+        'discharge_summ_2': summarizer_2.summ(discharge),
+    }
+
+
+def generate_summary_database():
+
+    data = data_preparation()
+
+    # Prepare storage
+    summ_01_col = []
+    summ_1_col = []
+    summ_2_col = []
+
+    for _, row in data.iterrows():
+
+        # Get summaries for this discharge
+        summaries = generate_summaries(row["discharge_text"])
+
+        summ_01_col.append(summaries["discharge_summ_01"])
+        summ_1_col.append(summaries["discharge_summ_1"])
+        summ_2_col.append(summaries["discharge_summ_2"])
+
+    # Add as new columns
+    data["discharge_summ_01"] = summ_01_col
+    data["discharge_summ_1"] = summ_1_col
+    data["discharge_summ_2"] = summ_2_col
+
+    # Save
+    data.to_csv(f"summaries_{datetime.now().strftime('%Y%m%d_%H%M')}.csv", index=False)
+
+
 def complete_pipeline(save_path: str = "results.csv"):
     """Run full summarization - decomposition - judging - evaluation pipeline."""
     data = data_preparation()
     summarizer = Summarizer(model='gemini')
 
-    for i, case in enumerate(data.iloc[13:].itertuples(index=False), start=1):
+    for i, case in enumerate(data.itertuples(index=False), start=1): #.iloc[13:]
         subject_id = getattr(case, "subject_id", None)
         hadm_id = getattr(case, "hadm_id", None)
         discharge_text = case.discharge_text
@@ -189,14 +231,25 @@ def complete_pipeline(save_path: str = "results.csv"):
 
             print(f'Processing {len(claims)} claims...')
             # judged_claims = judge(claims, discharge_text, context_json)
-            judged_claims = summarizer.judge(claims, discharge_text, context_text) ## TEST WITH CONTEXTUAL TEXT
+            # judged_claims = summarizer.judge(claims, discharge_text, context_text) ## TEST WITH CONTEXTUAL TEXT
+            judged_claims = summarizer.LLM_judge(claims, discharge_text, context_text)
             final_claims = claim_corretor(judged_claims, discharge_text, context_json)
 
             print('Compiling new summary')
             enhanced_summary = summarizer.compile([claim['claim'] for claim in final_claims])
 
             metrics = results_eval(discharge_text, summary, enhanced_summary)
+            llm_metrics = summarizer.llm_judge_metrics(discharge_text, summary, enhanced_summary)
 
+
+            # Extract motivations for CONTRADICTION-labelled claims
+            contradiction_motivations = [
+                claim.get("motivation", "")
+                for claim in judged_claims
+                if "CONTRADICTION" in claim.get("label", "")
+            ]
+
+            contradiction_motivation_text = "\n\n---------\n".join(contradiction_motivations)
 
             result = {
                 "subject_id": subject_id,
@@ -206,8 +259,10 @@ def complete_pipeline(save_path: str = "results.csv"):
                 "base_summary": summary,
                 "decomposed_claims": "\n".join(claims),
                 "judged_claims": "\n".join(f"{jc['claim']} - {jc['label']} - {jc['score']:.3f}" for jc in judged_claims),
+                "contradiction_motivations": contradiction_motivation_text,
                 "final_claims": "\n".join(claim['claim'] for claim in final_claims),
                 "enhanced_summary": enhanced_summary,
+                **llm_metrics,
                 **metrics,
             }
 
@@ -225,3 +280,85 @@ def complete_pipeline(save_path: str = "results.csv"):
     os.rename(save_path, final_path)
     print(f"\n!! Pipeline complete !! Results saved as {final_path}")
 
+
+
+
+def claim_judge_pipeline(save_path=None):
+    if save_path is None:
+        save_path = f"results_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+
+
+    data = [
+        {
+            "discharge_id": "D12345",
+            "discharge": "Paracentesis performed, patient stable for discharge.",
+            "context": "56-year-old female with HCV cirrhosis.",
+            "temp_0.1": "Patient underwent paracentesis and was discharged stable.",
+            "temp_1": "The patient was treated for ascites with paracentesis and improved.",
+            "temp_2": "After removing fluid from her abdomen, the patient felt better and went home."
+        },
+        {
+            "discharge_id": "D67890",
+            "discharge": "Improved after bronchodilators, discharged with inhalers.",
+            "context": "Smoker with chronic COPD.",
+            "temp_0.1": "Patient treated for COPD exacerbation and discharged.",
+            "temp_1": "The patient improved after bronchodilators and was able to go home.",
+            "temp_2": "Breathing treatment helped the patient, who was later discharged."
+        },
+        {
+            "discharge_id": "D54321",
+            "discharge": "Improved with lactulose therapy.",
+            "context": "HCV cirrhosis with prior HE.",
+            "temp_0.1": "Patient treated for hepatic encephalopathy and stabilized.",
+            "temp_1": "The patient improved on lactulose for HE.",
+            "temp_2": "Confusion got better after treatment, so the patient was discharged."
+        }
+    ]
+
+    data = pd.read_csv('summaries_20251211_0307.csv')
+
+    summary_temp = "discharge_summ_01"
+    summary_database = pd.DataFrame(data)
+    summarizer = Summarizer(model="gemini")
+
+    i = 0
+    for _, case in summary_database.iterrows():
+
+
+        print(i); i+=1
+        case_final_claims = pd.DataFrame()  # FIX
+        try:
+            summary_text = case[summary_temp]
+            claims = summarizer.decompose(summary_text, as_list=True)
+            judged_claims = summarizer.LLM_judge(claims, case["discharge_text"], case["context_textual"])
+
+            for claim_idx, claim in enumerate(judged_claims):
+                final_claim_row = {
+                    "claim_id": f"{case['note_id']}_{claim_idx}",
+                    "note_id": case["note_id"],
+                    "summary": summary_text,
+                    "discharge_text": case["discharge_text"],
+                    "context_textual": case["context_textual"],
+                    "claim": claim["claim"],
+                    "ai_label": claim["label"],
+                    "ai_justification": claim["motivation"],
+                }
+
+                case_final_claims = pd.concat(
+                    [case_final_claims, pd.DataFrame([final_claim_row])],
+                    ignore_index=True
+                )
+
+        except Exception as e:
+            print("\nError processing case:")
+            print(f"  note_id: {case['note_id']}")
+            print(f"  summary text: {case[summary_temp]}")
+            print(f"  error: {str(e)}\n")
+            continue
+
+        write_header = not os.path.isfile(save_path)
+        case_final_claims.to_csv(save_path, mode='a', header=write_header, index=False)
+
+        claims = None
+        judged_claims = None
+        gc.collect()

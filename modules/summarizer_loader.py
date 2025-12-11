@@ -22,12 +22,12 @@ def load_clinical_t5_pipeline():
     model = AutoModelForSeq2SeqLM.from_pretrained("hossboll/clinical-t5")
     return pipeline("summarization", model=model, tokenizer=tokenizer)
 
-def load_gemini(model: str='gemini-2.5-flash'):
+def load_gemini(model: str='gemini-2.5-flash', temp=1):
 
     with open('../config/cred.json') as f:
         config = json.load(f)
     api_key = config['api_key']
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name=model)
+    model = genai.GenerativeModel(model_name=model, generation_config={'temperature': temp})
     return model

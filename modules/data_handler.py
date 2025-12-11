@@ -4,7 +4,7 @@ import pandas as pd
 
 def load_discharges():
     data = pd.read_csv('../data_samples/notes/discharge.csv')
-    return data[:25]
+    return data[:5]
 
 def load_patient_data():
     data = pd.read_csv('../data_samples/hosp/prescriptions.csv') ### TODO: Remove limit in the return
