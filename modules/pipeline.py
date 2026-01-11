@@ -63,7 +63,7 @@ def data_preparation():
             # -----------------------------------------
             # Filter ALL patient data inside time window
             # -----------------------------------------
-            context_df = patients_data[
+            context_df = patients_data[  ## TODO: REMOVE
                 (patients_data['subject_id'] == subject_id)
                 & (patients_data['starttime'] >= window_start)
                 & (patients_data['starttime'] <= window_end)
@@ -72,8 +72,8 @@ def data_preparation():
             # -----------------------------------------
             # Build JSON + text versions of the context
             # -----------------------------------------
-            context_json = context_builder_json(context_df)
-            context_textual = context_builder_text(context_json)
+            context_json = context_builder_json(context_df) ## TODO: Can be discontinued
+            context_textual = context_builder_text(context_json) ## TODO: Change the logic to receive a dictionary of tables
 
             cases_data.append(
                 (case.note_id, subject_id, hadm_id, original_text, context_json, context_textual)

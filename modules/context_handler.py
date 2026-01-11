@@ -67,7 +67,34 @@ def context_builder_json(context: pd.DataFrame) -> list[dict]:
 
         context_list.append(entry)
 
-    return context_list
+    # return context_list
+
+    # ED = Emergency Department
+
+    ## Admissions
+    admission_text = f'Admission occured at {admittime} via {admission_location} ([admission_type]), ED stay from {edregtime} {edouttime}. The patient was discharged on {dischtime} to {discharge_location}. The patient is {race}, {maritial_status}, speaks {language}, and is insured by {insurance}.\n'
+
+
+    ## Emar
+
+
+    ## Labevents
+    lab_events_text = f'Relevant lab events include: '
+    for event in events:
+        lab_events_text += f'{lab_test} measured on {charttime} was {value}{valueuom}.'
+        if {ref}:
+            lab_events_text += f' Reference range {}-{}'
+    lab_events_text += '\n'
+
+    ## OMR
+
+
+    ## Pharmacy + Prescriptions
+
+
+    ## Transfers
+
+
 
 
 def stitch_medicine_descriptions(descriptions: list[str]) -> str:

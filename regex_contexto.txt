@@ -1,0 +1,41 @@
+ADMISSIONS
+Admission on [admittime] via [admission_location] ([admission_type]),
+ED stay [edregtime → edouttime],
+discharged on [dischtime] to [discharge_location],
+patient is [race], [marital_status], speaks [language], insured by [insurance].
+
+
+EMAR
+
+
+
+LABEVENTS
+Relevant labs include:
+{ Lab_Event }+
+[Lab test] measured on [charttime] was [value][valueuom]
+(reference range [ref_range_lower]–[ref_range_upper]).
+
+***
+Result was [flag].
+[comments]
+
+
+
+OMR
+Outpatient and routine measurements include:
+{ OMR_Observation }+
+On [chartdate], [result_name] was [result_value].
+
+
+PHARMACY+PRESCRIPTIONS
+Medications during this admission included:
+{ Medication_Event }+
+[Medication] was administered starting [starttime] via [route]
+at a dose of [dose_val_rx][dose_unit_rx] [form_rx],
+given [frequency], and stopped on [stoptime].
+
+
+
+TRANSFERS
+
+
