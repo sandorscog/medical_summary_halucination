@@ -39,3 +39,12 @@ given [frequency], and stopped on [stoptime].
 TRANSFERS
 
 
+
+
+
+Medication Table: Join prescriptions + pharmacy + emar. Standardize time to charttime.
+
+Examination Table: Join lab_events + d_labitems. Standardize time to charttime.
+
+Events Table: Join transfers + services + admissions. Standardize time to intime.
+

@@ -7,13 +7,57 @@ import gc
 import traceback
 
 from modules.summarizer import Summarizer
-from modules.data_handler import load_discharges, load_patient_data
+from modules.data_handler import load_discharges, load_patient_data, load_clinical_context
 from modules.context_handler import context_builder_text, context_builder_json, build_discharge_windows, get_patient_window_data
 from modules.summarizer_loader import load_bart, load_clinical_t5, load_gemini
 
 
-
 def data_preparation():
+    # 1. Load Discharges
+    discharges = load_discharges().sort_values(['subject_id', 'storetime'])
+    
+    # 2. Load Clinical Context (Returns a dict of prepared DataFrames)
+    # This dict contains: {'meds': df, 'labs': df, 'events': df}
+    clinical_data_dict = load_clinical_context() 
+
+    cases_data = []
+
+    for subject_id, group in discharges.groupby('subject_id'):
+        # Pre-filter clinical_data_dict for this specific subject to speed up loops
+        subj_context = {k: df[df['subject_id'] == subject_id] for k, df in clinical_data_dict.items()}
+
+        for case in group.itertuples(index=False):
+            # Define the Window
+            window_start = case.window_start # e.g., previous discharge or Timestamp.min
+            window_end   = case.storetime    # The time this note was written
+
+            # Create the "Cuts"
+            window_cuts = {}
+            for category, df in subj_context.items():
+                # Slice the data based on the standardized timestamp
+                # Note: 'timestamp' is a column we create during the Load step
+                window_cuts[category] = df[
+                    (df['timestamp'] >= window_start) & 
+                    (df['timestamp'] <= window_end)
+                ]
+
+            # Build the textual paragraph using your regex logic
+            # This function now takes the dict of cuts
+            context_textual = context_builder_v2(window_cuts)
+
+            cases_data.append({
+                'note_id': case.note_id,
+                'subject_id': subject_id,
+                'hadm_id': case.hadm_id,
+                'discharge_text': case.text,
+                'context_textual': context_textual,
+                'raw_cuts': window_cuts # Helpful for debugging
+            })
+
+    return pd.DataFrame(cases_data)
+
+
+def data_preparationxxx():
     """
     Loads discharges, patient data, builds contextual windows inline,
     and prepares tuples of (subject_id, hadm_id, discharge_text, context_text).
