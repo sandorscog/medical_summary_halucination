@@ -10,6 +10,7 @@ from modules.summarizer import Summarizer
 from modules.data_handler import load_discharges, load_patient_data, load_clinical_context
 from modules.context_handler import context_builder_text, context_builder_json, build_discharge_windows, get_patient_window_data
 from modules.summarizer_loader import load_bart, load_clinical_t5, load_gemini
+from modules.textual_context_handler import textual_context_builder
 
 
 def data_preparation():
