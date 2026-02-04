@@ -44,7 +44,7 @@ def data_preparation():
 
             # Build the textual paragraph using your regex logic
             # This function now takes the dict of cuts
-            context_textual = context_builder_v2(window_cuts)
+            context_textual = textual_context_builder(window_cuts)
 
             cases_data.append({
                 'note_id': case.note_id,
